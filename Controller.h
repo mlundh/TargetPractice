@@ -6,7 +6,8 @@
 #include <AccelStepper.h>
 #include <elapsedMillis.h>
 #include "ControllerStateMachine.h"
-
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 // Motor Connections (constant voltage bipolar H-bridge motor driver)
 const int AIn1 = 40;
@@ -30,12 +31,18 @@ enum states
   LINEAR_COMPETITION,
   RANDOM,
 };
-
+struct stringStates {
+   static const char* enumtext[];
+};
 
 class controller 
 {
   public:
   controller();
+
+  void init();
+
+  void changeCB(int state);
 
   void handleLimitSwitches();
 
@@ -58,6 +65,7 @@ class controller
   bool doNothingEntry();
   bool doNothingRun();
   bool doNothingExit();
+  bool genericExit();
 
   // Stop state specific functions
   bool stopEntry();
@@ -91,6 +99,8 @@ class controller
   Button mHitButton;
   Button mPositiveLimitSwitch;
   Button mNegativeLimitSwitch;
+
+  Adafruit_SSD1306 display;
 
   long int mTargetPos = mMaxDistance;
 

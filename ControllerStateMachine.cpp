@@ -40,10 +40,11 @@ void StateMachine::execute()
           {
             // After exiting the stage, move to the next state, begin with entry stage.
             mStage = stage::entry;
-            Serial.println("State is: " + mStates[mCurrentState].mName);
-
             mCurrentState = mNextState;
-            Serial.println("State changed to: " + mStates[mCurrentState].mName);
+            if(mChangeCB)
+            {
+              mChangeCB(mCurrentState);
+            }
           }
 
         }
@@ -62,20 +63,8 @@ void StateMachine::changeState(int state)
 
   if(state == 0xFFFF)
   {
-    String nextName = mStates[mNextState].mName;
-    Serial.print("NextState is: " + nextName + " ");
-    Serial.println(mNextState);
-
     mNextState++;
     mNextState %= mStates.size(); // wrap around.
-
-    nextName = mStates[mNextState].mName;
-    Serial.print("NextState is: " + nextName + " ");
-    Serial.println(mNextState);
-
-    String name = mStates[mCurrentState].mName;
-    Serial.print("Current state: " + name + " ");
-    Serial.println(mCurrentState);
   }
   else if(state < mStates.size())
   {
@@ -88,6 +77,12 @@ void StateMachine::registerState(String name, StateMashineFunction entry, StateM
 {
   mStates.push_back(State(name, entry, run, exit));
 }
+
+void StateMachine::registerChangeCb(StateChangeCb cb)
+{
+  mChangeCB = cb;
+}
+
 
 int StateMachine::getNrRegisteredStates()
 {

@@ -8,6 +8,7 @@
 
 typedef std::function<bool()> StateMashineFunction;
 
+typedef std::function<void(int)> StateChangeCb;
 
 
 class StateMachine 
@@ -21,6 +22,7 @@ public:
 
   void registerState(String name, StateMashineFunction entry, StateMashineFunction run, StateMashineFunction exit);
 
+  void registerChangeCb(StateChangeCb cb);
   int getNrRegisteredStates();
   private:
   
@@ -40,12 +42,12 @@ public:
     StateMashineFunction mExit;
   };
 
+  StateChangeCb mChangeCB;
   std::vector<State> mStates;
   int mCurrentState = 0;
   int mNextState = 0;
   stage mStage = stage::entry;
   bool mStarted;
-
 };
 
 #endif /* CONTROLLER_STATE_MACHINE_INCLUDE_GUARD */

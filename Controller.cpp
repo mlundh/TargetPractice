@@ -2,10 +2,20 @@
 #include "Controller.h"
 #include <Wire.h>
 
+
 volatile uint8_t modeButtonPressEvent = LOW;
 volatile uint8_t hitButtonPressEvent = LOW;
 volatile uint8_t LeftLimitSwitchEvent = LOW;
 volatile uint8_t RightLimitSwitchEvent = LOW;
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
+
+#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+
+
+const char* stringStates::enumtext[] = { "STOP      ", "INIT      ", "LINEAR    ", "LIN COMP  " , "RANDOM    "};
 
 
 void ISR_modeButton() 
@@ -33,18 +43,47 @@ controller::controller()
     mHitButton(hitPin, ISR_hitButton, &hitButtonPressEvent, "hit"),
     mPositiveLimitSwitch(LeftLimitSwitchPin, ISR_LeftLimitSwitch, &LeftLimitSwitchEvent, "LeftLimit"),
     mNegativeLimitSwitch(RightLimitSwitchPin, ISR_RightLimitSwitch, &RightLimitSwitchEvent, "RightLimit"),
+    display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
     mStateMachine()
 {
   mStepper.setEnablePin(38);
   mStepper.setMaxSpeed(mSpeed);
   mStepper.setAcceleration(mAcceleration);
   
-  mStateMachine.registerState("STOP", std::bind(&controller::stopEntry, this), std::bind(&controller::doNothingRun, this), std::bind(&controller::doNothingExit, this));
-  mStateMachine.registerState("INIT", std::bind(&controller::initEntry, this), std::bind(&controller::initRun, this), std::bind(&controller::doNothingExit, this));
-  mStateMachine.registerState("LINEAR", std::bind(&controller::linearEntry, this), std::bind(&controller::linearRun, this), std::bind(&controller::doNothingExit, this));
-  mStateMachine.registerState("LINEAR_COMPETITION", std::bind(&controller::linearCompEntry, this), std::bind(&controller::linearCompRun, this), std::bind(&controller::doNothingExit, this));
-  mStateMachine.registerState("RANDOM", std::bind(&controller::randomEntry, this), std::bind(&controller::randomRun, this), std::bind(&controller::doNothingExit, this));
+  mStateMachine.registerState("STOP", std::bind(&controller::stopEntry, this), std::bind(&controller::doNothingRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("INIT", std::bind(&controller::initEntry, this), std::bind(&controller::initRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("LINEAR", std::bind(&controller::linearEntry, this), std::bind(&controller::linearRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("LINEAR_COMPETITION", std::bind(&controller::linearCompEntry, this), std::bind(&controller::linearCompRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("RANDOM", std::bind(&controller::randomEntry, this), std::bind(&controller::randomRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerChangeCb(std::bind(&controller::changeCB, this, std::placeholders::_1));
+
 };
+
+void controller::init()
+{
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) 
+  {
+    for(;;); // Don't proceed, loop forever
+  }
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);        // Draw white text
+  display.setCursor(0,9);             // Start at top-left corner
+  display.println(F("Target!"));
+  display.display();
+  delay(500);
+}
+
+void controller::changeCB(int state)
+{
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);        // Draw white text
+  display.setCursor(0,9);             // Start at top-left corner
+  display.print(stringStates::enumtext[state]);
+  display.display();
+
+}
 
 
 void controller::handleLimitSwitches() 
@@ -100,27 +139,19 @@ void controller::handleKnobs() {
     int speedSensorReading = analogRead(speedAdjustmentPin);
     // map it to a range from 0 to 100:
     int tmpSpeed = map(speedSensorReading, 0, 1023, 0, mMaxSpeedLimit);
-    if (mSpeed > (tmpSpeed + 10) || mSpeed < (tmpSpeed - 10)) {
-      mSpeed = tmpSpeed;
-      mStepper.setMaxSpeed(mSpeed);
-      Serial.print("Changing speed to: ");
-      Serial.println(mSpeed);
-    }
+    mSpeed = tmpSpeed;
+    mStepper.setMaxSpeed(mSpeed);
+    Serial.print("Changing speed to: ");
+    Serial.println(mSpeed);
 
     int accelSensorReading = analogRead(accelAdjustmentPin);
     // map it to a range from 0 to 100:
-    int tmpAcceleration = map(accelSensorReading, 0, 1023, 100, mMaxAcceleration);
-    if (mAcceleration > (tmpAcceleration + 10) || mAcceleration < (tmpAcceleration - 10)) {
-      mAcceleration = tmpAcceleration;
-      mStepper.setAcceleration(mAcceleration);
-      Serial.print("Changing acceleration to:");
-      Serial.println(mAcceleration);
-    }
+    int tmpAcc = map(accelSensorReading, 0, 1023, 100, mMaxAcceleration);
+    mAcceleration = tmpAcc;
+    mStepper.setAcceleration(mAcceleration);
+    Serial.print("Changing acceleration to:");
+    Serial.println(mAcceleration);
 
-    float mSpeed = mStepper.speed();
-    Serial.print(mSpeed);
-    Serial.print("  ");
-    Serial.println(mStepper.currentPosition());
   }
 }
 
@@ -204,15 +235,27 @@ bool controller::doNothingRun()
 
 bool controller::doNothingExit()
 {
-  Serial.println("doNothingExit");
   mStepper.disableOutputs();
   return false;
 }
 
+bool controller::genericExit()
+{
+
+  mStepper.setAcceleration(1000);  // Stopp quickly, set acceleration to a high level!
+  mStepper.stop();
+  while (mStepper.run())
+  {
+
+  }
+  mStepper.moveTo(mStepper.currentPosition()); // move to current position, this means stop here and wait for new command.
+  mStepper.setAcceleration(mAcceleration);
+  mStepper.disableOutputs();
+  return false;
+}
 
 bool controller::stopEntry()
 {
-  Serial.println("StopEntry");
   return false;
 }
 
@@ -221,8 +264,9 @@ bool controller::initEntry()
 {
   if(entryDelay())
   {
-    Serial.println("initEntry!");
+
     mInitFoundFirst = false;
+    mStepper.setCurrentPosition(0);
     mStepper.moveTo(-mMaxDistance);
     mStepper.enableOutputs();
     return false;
@@ -241,6 +285,11 @@ bool controller::initRun()
     else
     {
       mStepper.moveTo(mPositiveLimit); // a bit away from the positve limit switch
+      while(mStepper.run())
+      {
+
+      }
+      mStateMachine.changeState(states::STOP);
     }
   }
   return true;
@@ -373,7 +422,6 @@ bool controller::linearCompRun()
 
 bool controller::randomEntry()
 {
-{
   if(entryDelay())
   {
     randomPosition();
@@ -385,7 +433,6 @@ bool controller::randomEntry()
     return false;
   }
   return true;
-}
 }
 bool controller::randomRun()
 {
