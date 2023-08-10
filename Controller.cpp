@@ -41,12 +41,12 @@ controller::controller()
   : mStepper(AccelStepper::FULL4WIRE, AIn1, AIn2, BIn1, BIn2),
     mModeButton(modePin, ISR_modeButton, &modeButtonPressEvent, "mode"),
     mHitButton(hitPin, ISR_hitButton, &hitButtonPressEvent, "hit"),
-    mPositiveLimitSwitch(LeftLimitSwitchPin, ISR_LeftLimitSwitch, &LeftLimitSwitchEvent, "LeftLimit"),
-    mNegativeLimitSwitch(RightLimitSwitchPin, ISR_RightLimitSwitch, &RightLimitSwitchEvent, "RightLimit"),
+    mPositiveLimitSwitch(negativeLimitSwitchPin, ISR_LeftLimitSwitch, &LeftLimitSwitchEvent, "LeftLimit"),
+    mNegativeLimitSwitch(positiveLimitSwitchPin, ISR_RightLimitSwitch, &RightLimitSwitchEvent, "RightLimit"),
     display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
     mStateMachine()
 {
-  mStepper.setEnablePin(38);
+  mStepper.setEnablePin(enablePin);
   mStepper.setMaxSpeed(mSpeed);
   mStepper.setAcceleration(mAcceleration);
   
@@ -71,6 +71,7 @@ void controller::init()
   display.setCursor(0,9);             // Start at top-left corner
   display.println(F("Target!"));
   display.display();
+  randomSeed(analogRead(randSeedPin));
   delay(500);
 }
 
@@ -124,6 +125,7 @@ void controller::handleButtons()
 {
   if (mModeButton.pressed()) 
   {
+    mFirstEntryDelay = true;
     mStateMachine.changeState();
   }
   if (mHitButton.pressed()) 

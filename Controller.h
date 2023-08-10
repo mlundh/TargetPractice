@@ -10,18 +10,21 @@
 #include <Adafruit_SSD1306.h>
 
 // Motor Connections (constant voltage bipolar H-bridge motor driver)
-const int AIn1 = 40;
-const int AIn2 = 42;
-const int BIn1 = 44;
-const int BIn2 = 46;
+const int enablePin = 8;
+const int AIn1 = 9;
+const int AIn2 = 10;
+const int BIn1 = 11;
+const int BIn2 = 12;
 
 const int modePin = 52;
+const int stopPin = 48;
 const int hitPin = 24;
-const int LeftLimitSwitchPin = 50;
-const int RightLimitSwitchPin = 48;
+const int negativeLimitSwitchPin = 44;
+const int positiveLimitSwitchPin = 40;
 
-const unsigned int speedAdjustmentPin = A0;
+const unsigned int speedAdjustmentPin = A3;
 const unsigned int accelAdjustmentPin = A4;
+const unsigned int randSeedPin = A1;
 
 enum states 
 {
