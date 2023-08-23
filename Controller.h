@@ -10,21 +10,25 @@
 #include <Adafruit_SSD1306.h>
 
 // Motor Connections (constant voltage bipolar H-bridge motor driver)
-const int enablePin = 8;
-const int AIn1 = 9;
-const int AIn2 = 10;
-const int BIn1 = 11;
-const int BIn2 = 12;
+const int dirPin = 11;
+const int stepPin = 12;
+const int enablePin = 13;
+
+const int MS1 = 40;
+const int MS2 = 38;
 
 const int modePin = 52;
 const int stopPin = 48;
-const int hitPin = 24;
-const int negativeLimitSwitchPin = 44;
-const int positiveLimitSwitchPin = 40;
+const int hitPin = 10;
+const int negativeLimitSwitchPin = 26;
+const int positiveLimitSwitchPin = 30;
 
 const unsigned int speedAdjustmentPin = A3;
 const unsigned int accelAdjustmentPin = A4;
-const unsigned int randSeedPin = A1;
+const unsigned int randSeedPin = A0;
+
+
+const int stepMultiplier = 5*4;
 
 enum states 
 {
@@ -76,7 +80,8 @@ class controller
   // Init state specific functions
   bool initEntry();
   bool initRun();
-
+  bool initExit();
+  
   // Linear state specific functions
   bool linearEntry();
   bool linearRun();
@@ -92,14 +97,16 @@ class controller
   public:
   AccelStepper mStepper;
   StateMachine mStateMachine;
-  const float mMaxSpeedLimit = 800;  // set this to the maximum speed you want to use.
-  const float mMaxAcceleration = 3200;
-  const long int mMaxDistance = 2500; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 3,5m -> approx 2500 pulses.
-  const long int mMarginFromEnd = 50;
-  float mSpeed = 500;
-  float mAcceleration = 450;  // set this to the speed we are currently moving at (if acceleration phase is over)
+  const float mMaxSpeedLimit = 800*stepMultiplier;  // set this to the maximum speed you want to use.
+  const float mMaxAcceleration = 600*stepMultiplier;
+  const float mStopFastAcc = mMaxAcceleration * 4;
+  const long int mMaxDistance = 2500*stepMultiplier; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 3,5m -> approx 2500 pulses. 5:1 gearbox, and quarterstep.
+  const long int mMarginFromEnd = 50*stepMultiplier;
+  float mSpeed = 500*stepMultiplier;
+  float mAcceleration = 450*stepMultiplier;  // set this to the speed we are currently moving at (if acceleration phase is over)
   Button mModeButton;
   Button mHitButton;
+  Button mStopButton;
   Button mPositiveLimitSwitch;
   Button mNegativeLimitSwitch;
 
@@ -123,7 +130,7 @@ class controller
   enum LinearComp {RUN, WON, CELEBRATE};
   LinearComp mLinearCompState = LinearComp::RUN;
   unsigned int mShakes = 0;
-  long int mDelta = 50;
+  long int mDelta = 100;
 
   elapsedMillis mEntryTimer;
 

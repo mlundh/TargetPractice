@@ -5,6 +5,7 @@
 
 volatile uint8_t modeButtonPressEvent = LOW;
 volatile uint8_t hitButtonPressEvent = LOW;
+volatile uint8_t stopButtonPressEvent = LOW;
 volatile uint8_t LeftLimitSwitchEvent = LOW;
 volatile uint8_t RightLimitSwitchEvent = LOW;
 
@@ -26,6 +27,10 @@ void ISR_hitButton()
 {
   hitButtonPressEvent = HIGH;
 }
+void ISR_stopButton() 
+{
+  stopButtonPressEvent = HIGH;
+}
 
 void ISR_LeftLimitSwitch() 
 {
@@ -38,20 +43,22 @@ void ISR_RightLimitSwitch()
 }
 
 controller::controller()
-  : mStepper(AccelStepper::FULL4WIRE, AIn1, AIn2, BIn1, BIn2),
+  : mStepper(AccelStepper::DRIVER, stepPin, dirPin),
     mModeButton(modePin, ISR_modeButton, &modeButtonPressEvent, "mode"),
     mHitButton(hitPin, ISR_hitButton, &hitButtonPressEvent, "hit"),
+    mStopButton(stopPin, ISR_stopButton, &stopButtonPressEvent, "stop"),
     mPositiveLimitSwitch(negativeLimitSwitchPin, ISR_LeftLimitSwitch, &LeftLimitSwitchEvent, "LeftLimit"),
     mNegativeLimitSwitch(positiveLimitSwitchPin, ISR_RightLimitSwitch, &RightLimitSwitchEvent, "RightLimit"),
     display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
     mStateMachine()
 {
+  mStepper.setPinsInverted(false, false, true);
   mStepper.setEnablePin(enablePin);
   mStepper.setMaxSpeed(mSpeed);
   mStepper.setAcceleration(mAcceleration);
-  
+  mStepper.disableOutputs();
   mStateMachine.registerState("STOP", std::bind(&controller::stopEntry, this), std::bind(&controller::doNothingRun, this), std::bind(&controller::genericExit, this));
-  mStateMachine.registerState("INIT", std::bind(&controller::initEntry, this), std::bind(&controller::initRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("INIT", std::bind(&controller::initEntry, this), std::bind(&controller::initRun, this), std::bind(&controller::initExit, this));
   mStateMachine.registerState("LINEAR", std::bind(&controller::linearEntry, this), std::bind(&controller::linearRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("LINEAR_COMPETITION", std::bind(&controller::linearCompEntry, this), std::bind(&controller::linearCompRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("RANDOM", std::bind(&controller::randomEntry, this), std::bind(&controller::randomRun, this), std::bind(&controller::genericExit, this));
@@ -72,6 +79,15 @@ void controller::init()
   display.println(F("Target!"));
   display.display();
   randomSeed(analogRead(randSeedPin));
+  mStepper.disableOutputs();
+
+  pinMode(MS2, OUTPUT);
+  pinMode(MS1, OUTPUT);
+
+
+  digitalWrite(MS1, LOW); // Qarter step!
+  digitalWrite(MS2, HIGH); 
+
   delay(500);
 }
 
@@ -95,7 +111,7 @@ void controller::handleLimitSwitches()
   if ( positivePressed || negativePressed ) 
   {
 
-    mStepper.setAcceleration(10000);  // Stopp quickly, set acceleration to a high level!
+    mStepper.setAcceleration(mStopFastAcc * 2);  // Stopp quickly, set acceleration to a high level!
     mStepper.stop();
     while (mStepper.run())
     {
@@ -130,8 +146,11 @@ void controller::handleButtons()
   }
   if (mHitButton.pressed()) 
   {
-    Serial.println("HIT!");
     mHitRegistered = true;
+  }
+  if (mStopButton.pressed()) 
+  {
+    mStateMachine.changeState(states::STOP);
   }
 }
 
@@ -244,7 +263,7 @@ bool controller::doNothingExit()
 bool controller::genericExit()
 {
 
-  mStepper.setAcceleration(1000);  // Stopp quickly, set acceleration to a high level!
+  mStepper.setAcceleration(mStopFastAcc);  // Stopp quickly, set acceleration to a high level!
   mStepper.stop();
   while (mStepper.run())
   {
@@ -258,6 +277,8 @@ bool controller::genericExit()
 
 bool controller::stopEntry()
 {
+  mStepper.moveTo(mStepper.currentPosition());
+  mStepper.disableOutputs();
   return false;
 }
 
@@ -271,6 +292,7 @@ bool controller::initEntry()
     mStepper.setCurrentPosition(0);
     mStepper.moveTo(-mMaxDistance);
     mStepper.enableOutputs();
+    mStepper.setMaxSpeed(150*stepMultiplier);
     return false;
   }
   return true;
@@ -296,7 +318,14 @@ bool controller::initRun()
   }
   return true;
 }
-
+bool controller::initExit()
+{
+  Serial.print("positive limit : ");
+  Serial.println(mPositiveLimit);
+  Serial.print("negative limit : ");
+  Serial.println(mNegativeLimit);   
+  return false;
+}
 
 
 bool controller::linearEntry()
@@ -329,7 +358,6 @@ bool controller::linearCompEntry()
       mTargetPos = ((mPositiveLimit - mNegativeLimit)/2) + mNegativeLimit;
       mStepper.moveTo(mTargetPos);
       mStepper.enableOutputs();
-      Serial.print("Comp entry. moving towards center: ");
       Serial.println(mTargetPos);
       mHitRegistered = false;
       mLinearCompInit = true;
@@ -343,7 +371,6 @@ bool controller::linearCompEntry()
       if(mHitRegistered) // wait for first hit.
       {
         mStepper.enableOutputs();
-        Serial.println("Comp entry. Center found.");
         mTargetPos = mNegativeLimit;
         mStepper.moveTo(mTargetPos);
 
@@ -449,7 +476,6 @@ bool controller::randomRun()
     mStepper.setAcceleration(mAcceleration);  // reset the acceleration so that function can resume.
     //mStepper.disableOutputs();               // then disable outputs.
     mStepper.moveTo(mStepper.currentPosition()); // move to current position, this means stop here and wait for new command.
-    Serial.print("Hit,!");
     mHitRegistered = false;
   }
   else if(!mStepper.run()) 
