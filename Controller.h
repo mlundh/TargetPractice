@@ -48,15 +48,10 @@ class controller
   controller();
 
   void init();
-
   void changeCB(int state);
-
   void handleLimitSwitches();
-
   void handleButtons();
-
   void handleKnobs();
-
   void run();
 
   private:
@@ -67,7 +62,8 @@ class controller
   void randomPosition();
   void randomSpeed();
   void randomAccl();
-  
+  bool randomDelay(); 
+
   // Default implementations
   bool doNothingEntry();
   bool doNothingRun();
@@ -99,9 +95,12 @@ class controller
   StateMachine mStateMachine;
   const float mMaxSpeedLimit = 800*stepMultiplier;  // set this to the maximum speed you want to use.
   const float mMaxAcceleration = 600*stepMultiplier;
-  const float mStopFastAcc = mMaxAcceleration * 4;
+  const float mStopFastAcc = mMaxAcceleration * 6;
   const long int mMaxDistance = 2500*stepMultiplier; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 3,5m -> approx 2500 pulses. 5:1 gearbox, and quarterstep.
   const long int mMarginFromEnd = 50*stepMultiplier;
+  const long int mMaxDelay = 2000;
+  const long int mInitDelay = 1000;
+
   float mSpeed = 500*stepMultiplier;
   float mAcceleration = 450*stepMultiplier;  // set this to the speed we are currently moving at (if acceleration phase is over)
   Button mModeButton;
@@ -110,29 +109,26 @@ class controller
   Button mPositiveLimitSwitch;
   Button mNegativeLimitSwitch;
 
-  Adafruit_SSD1306 display;
 
   long int mTargetPos = mMaxDistance;
-
-  elapsedMillis mTimer;
   uint8_t mLedState = LOW;
-
   long int mPositiveLimit = mMaxDistance;
   long int mNegativeLimit = -mMaxDistance;
   bool mHitRegistered = false;
-
   bool mFirstEntryDelay = true;
-
   bool mInitFoundFirst = false;
-
   bool mLinearCompInit = false;
+  unsigned int mShakes = 0;
+  long int mDelta = 150;
+  bool mFirstRandDelay = true;
+  long int mRandDelay = 0;
 
   enum LinearComp {RUN, WON, CELEBRATE};
   LinearComp mLinearCompState = LinearComp::RUN;
-  unsigned int mShakes = 0;
-  long int mDelta = 100;
 
   elapsedMillis mEntryTimer;
+  elapsedMillis mRandTimer;
+  Adafruit_SSD1306 display;
 
 };
 
