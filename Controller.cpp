@@ -16,7 +16,7 @@ volatile uint8_t RightLimitSwitchEvent = LOW;
 #define SCREEN_ADDRESS 0x3C  ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 
 
-const char* stringStates::enumtext[] = { "STOP      ", "INIT      ", "LINEAR    ", "LIN COMP  ", "RANDOM    " };
+const char* stringStates::enumtext[] = { "STOP      ", "INIT      ", "LINEAR    ", "LIN REACT ",  "LIN COMP  ", "RANDOM    " };
 
 
 void ISR_modeButton() {
@@ -54,6 +54,7 @@ controller::controller()
   mStateMachine.registerState("STOP", std::bind(&controller::stopEntry, this), std::bind(&controller::doNothingRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("INIT", std::bind(&controller::initEntry, this), std::bind(&controller::initRun, this), std::bind(&controller::initExit, this));
   mStateMachine.registerState("LINEAR", std::bind(&controller::linearEntry, this), std::bind(&controller::linearRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("LINEAR_REACT", std::bind(&controller::linearReactEntry, this), std::bind(&controller::linearReactRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("LINEAR_COMPETITION", std::bind(&controller::linearCompEntry, this), std::bind(&controller::linearCompRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("RANDOM", std::bind(&controller::randomEntry, this), std::bind(&controller::randomRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerChangeCb(std::bind(&controller::changeCB, this, std::placeholders::_1));
@@ -314,6 +315,34 @@ bool controller::linearRun() {
   return true;
 }
 
+bool controller::linearReactEntry() {
+  if (entryDelay()) {
+    mTargetPos = mPositiveLimit;
+    mStepper.moveTo(mTargetPos);
+    mStepper.enableOutputs();
+    return false;
+  }
+  return true;
+}
+bool controller::linearReactRun() {
+  if (mHitRegistered) {
+    mStepper.setAcceleration(mStopFastAcc);  // Stopp quickly, set acceleration to a high level!
+    mStepper.stop();
+    while (mStepper.run()) {
+
+    }                                         // stop as fast as possible. Let accelStepper lib stop the motor.
+    mStepper.setAcceleration(mAcceleration);  // reset the acceleration so that function can resume.
+    updateTargetToOtherSide();
+    mStepper.moveTo(mTargetPos);
+    mHitRegistered = false;
+  }
+  else if (!mStepper.run()) {
+    updateTargetToOtherSide();
+    mStepper.moveTo(mTargetPos);
+  }
+  return true;
+}
+
 bool controller::linearCompEntry() {
   if (!mLinearCompInit) {
     if (entryDelay())  // first mandatory delay.
@@ -404,6 +433,7 @@ bool controller::linearCompRun() {
 }
 
 
+
 bool controller::randomEntry() {
   if (entryDelay()) {
     randomPosition();
@@ -416,7 +446,6 @@ bool controller::randomEntry() {
   }
   return true;
 }
-
 
 bool controller::randomRun() {
   if (mHitRegistered) {

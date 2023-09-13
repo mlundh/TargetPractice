@@ -35,6 +35,7 @@ enum states
   STOP,
   INITIALIZING,
   LINEAR,
+  LINEAR_REACT,
   LINEAR_COMPETITION,
   RANDOM,
 };
@@ -81,6 +82,10 @@ class controller
   // Linear state specific functions
   bool linearEntry();
   bool linearRun();
+
+  // Linear state specific functions
+  bool linearReactEntry();
+  bool linearReactRun();
 
   // Linear competetion specific functions
   bool linearCompEntry();
