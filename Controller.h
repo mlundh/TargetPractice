@@ -114,6 +114,7 @@ class controller
   uint8_t mLedState = LOW;
   long int mPositiveLimit = mMaxDistance;
   long int mNegativeLimit = -mMaxDistance;
+  long unsigned int mTrackLength = 0;
   bool mHitRegistered = false;
   bool mFirstEntryDelay = true;
   bool mInitFoundFirst = false;

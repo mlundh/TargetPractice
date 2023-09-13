@@ -110,11 +110,19 @@ void controller::handleLimitSwitches() {
 
     if (positivePressed) {
       mPositiveLimit = mStepper.currentPosition() - mMarginFromEnd;
+      if(mTrackLength)
+      {
+        mNegativeLimit = mPositiveLimit - mTrackLength;
+      }
       Serial.print("positive limit reached: ");
       Serial.println(mPositiveLimit);
 
     } else {
       mNegativeLimit = mStepper.currentPosition() + mMarginFromEnd;
+      if(mTrackLength)
+      {
+        mPositiveLimit = mNegativeLimit + mTrackLength;
+      }
       Serial.print("negative limit reached: ");
       Serial.println(mNegativeLimit);
     }
@@ -254,6 +262,7 @@ bool controller::initEntry() {
   if (entryDelay()) {
 
     mInitFoundFirst = false;
+    mTrackLength = 0;
     mStepper.setCurrentPosition(0);
     mStepper.moveTo(mMaxDistance);
     mStepper.enableOutputs();
@@ -280,10 +289,10 @@ bool controller::initRun() {
 
 bool controller::initExit() {
   Serial.print("positive limit : ");
-  Serial.println(mPositiveLimit);
+  Serial.println();
   Serial.print("negative limit : ");
   Serial.println(mNegativeLimit);
-  
+  mTrackLength = mPositiveLimit - mNegativeLimit;
   return false;
 }
 
