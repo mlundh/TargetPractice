@@ -96,7 +96,7 @@ class controller
   const float mMaxSpeedLimit = 800*stepMultiplier;  // set this to the maximum speed you want to use.
   const float mMaxAcceleration = 600*stepMultiplier;
   const float mStopFastAcc = mMaxAcceleration * 6;
-  const long int mMaxDistance = 2500*stepMultiplier; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 3,5m -> approx 2500 pulses. 5:1 gearbox, and quarterstep.
+  const long int mMaxDistance = 5600*stepMultiplier; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 8m -> approx 5600 pulses. 5:1 gearbox, and quarterstep.
   const long int mMarginFromEnd = 50*stepMultiplier;
   const long int mMaxDelay = 2000;
   const long int mInitDelay = 1000;

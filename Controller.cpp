@@ -255,7 +255,7 @@ bool controller::initEntry() {
 
     mInitFoundFirst = false;
     mStepper.setCurrentPosition(0);
-    mStepper.moveTo(-mMaxDistance);
+    mStepper.moveTo(mMaxDistance);
     mStepper.enableOutputs();
     mStepper.setMaxSpeed(150 * stepMultiplier);
     return false;
@@ -267,9 +267,9 @@ bool controller::initRun() {
   if (!mStepper.run()) {
     if (!mInitFoundFirst) {
       mInitFoundFirst = true;
-      mStepper.moveTo(mMaxDistance);
+      mStepper.moveTo(-mMaxDistance);
     } else {
-      mStepper.moveTo(mPositiveLimit);  // a bit away from the positve limit switch
+      mStepper.moveTo(mNegativeLimit);  // a bit away from the positve limit switch
       while (mStepper.run()) {
       }
       mStateMachine.changeState(states::STOP);
@@ -283,6 +283,7 @@ bool controller::initExit() {
   Serial.println(mPositiveLimit);
   Serial.print("negative limit : ");
   Serial.println(mNegativeLimit);
+  
   return false;
 }
 
@@ -343,8 +344,7 @@ bool controller::linearCompRun() {
           Serial.print("Hit!");
           mStepper.setAcceleration(mStopFastAcc);  // Stopp quickly, set acceleration to a high level!
           mStepper.stop();
-          while (mStepper.run()) 
-          {
+          while (mStepper.run()) {
 
           }                                         // stop as fast as possible. Let accelStepper lib stop the motor.
           mStepper.setAcceleration(mAcceleration);  // reset the acceleration so that function can resume.
@@ -361,18 +361,15 @@ bool controller::linearCompRun() {
       }
     case LinearComp::WON:
       {
-        updateTargetTowardsCenter(100);
-        if (!mStepper.run()) {
-          mLinearCompState = LinearComp::CELEBRATE;  // Change to celebration mode.
+        mLinearCompState = LinearComp::CELEBRATE;  // Change to celebration mode.
 
-          // Initialize celebration mode.
-          long int currentPos = mStepper.currentPosition();
-          mTargetPos = currentPos + mDelta;
-          mDelta = -mDelta;
-          mStepper.moveTo(mTargetPos);
-          mStepper.setAcceleration(10000);  // Shake violently! :)
-          mStepper.setSpeed(600);
-        }
+        // Initialize celebration mode.
+        long int currentPos = mStepper.currentPosition();
+        mTargetPos = currentPos + mDelta;
+        mDelta = -mDelta;
+        mStepper.moveTo(mTargetPos);
+        mStepper.setAcceleration(10000);  // Shake violently! :)
+        mStepper.setSpeed(600);
         break;
       }
     case LinearComp::CELEBRATE:
