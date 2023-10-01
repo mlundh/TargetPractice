@@ -16,7 +16,7 @@ volatile uint8_t RightLimitSwitchEvent = LOW;
 #define SCREEN_ADDRESS 0x3C  ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 
 
-const char* stringStates::enumtext[] = { "STOP      ", "INIT      ", "LINEAR    ", "LIN REACT ",  "LIN COMP  ", "RANDOM    " };
+const char* stringStates::enumtext[] = { "STOP      ", "INIT      ", "LINEAR    ", "LIN REACT ", "LIN COMP  ", "RANDOM    ", "MOOSE     " };
 
 
 void ISR_modeButton() {
@@ -57,6 +57,8 @@ controller::controller()
   mStateMachine.registerState("LINEAR_REACT", std::bind(&controller::linearReactEntry, this), std::bind(&controller::linearReactRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("LINEAR_COMPETITION", std::bind(&controller::linearCompEntry, this), std::bind(&controller::linearCompRun, this), std::bind(&controller::genericExit, this));
   mStateMachine.registerState("RANDOM", std::bind(&controller::randomEntry, this), std::bind(&controller::randomRun, this), std::bind(&controller::genericExit, this));
+  mStateMachine.registerState("MOOSE", std::bind(&controller::mooseEntry, this), std::bind(&controller::mooseRun, this), std::bind(&controller::genericExit, this));
+
   mStateMachine.registerChangeCb(std::bind(&controller::changeCB, this, std::placeholders::_1));
 };
 
@@ -111,8 +113,7 @@ void controller::handleLimitSwitches() {
 
     if (positivePressed) {
       mPositiveLimit = mStepper.currentPosition() - mMarginFromEnd;
-      if(mTrackLength)
-      {
+      if (mTrackLength) {
         mNegativeLimit = mPositiveLimit - mTrackLength;
       }
       Serial.print("positive limit reached: ");
@@ -120,8 +121,7 @@ void controller::handleLimitSwitches() {
 
     } else {
       mNegativeLimit = mStepper.currentPosition() + mMarginFromEnd;
-      if(mTrackLength)
-      {
+      if (mTrackLength) {
         mPositiveLimit = mNegativeLimit + mTrackLength;
       }
       Serial.print("negative limit reached: ");
@@ -187,13 +187,14 @@ void controller::updateTargetToOtherSide() {
 }
 
 bool controller::entryDelay() {
-  handleKnobs();
+
   if (mFirstEntryDelay) {
     mEntryTimer = 0;
     mFirstEntryDelay = false;
   } else if (mEntryTimer >= mInitDelay) {
     mEntryTimer = 0;
     mFirstEntryDelay = true;
+    handleKnobs();
     return true;
   }
   return false;
@@ -225,6 +226,7 @@ bool controller::randomDelay() {
   }
   return false;
 }
+
 
 bool controller::doNothingEntry() {
   mStepper.enableOutputs();
@@ -335,8 +337,7 @@ bool controller::linearReactRun() {
     updateTargetToOtherSide();
     mStepper.moveTo(mTargetPos);
     mHitRegistered = false;
-  }
-  else if (!mStepper.run()) {
+  } else if (!mStepper.run()) {
     updateTargetToOtherSide();
     mStepper.moveTo(mTargetPos);
   }
@@ -464,6 +465,62 @@ bool controller::randomRun() {
       randomAccl();
       mStepper.moveTo(mTargetPos);
     }
+  }
+
+  return true;
+}
+
+bool controller::mooseEntry() {
+if (!mMooseInit) {
+  if (entryDelay()) {
+    mStepper.enableOutputs();
+    mHitRegistered = false;
+    updateTargetToOtherSide();
+    mStepper.moveTo(mTargetPos);
+    mMooseInit = true;
+  } 
+ }
+  else {
+    if (!mStepper.run())  // then run to center.
+    {
+      mMooseInit = false;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool controller::mooseRun() {
+  switch (mMooseState) {
+    case MooseState::START:
+      {
+        if (mHitRegistered) {
+          Serial.print("MOOSE HIT!");
+          updateTargetToOtherSide();
+          mStepper.moveTo(mTargetPos);
+          mHitRegistered = false;
+          mMooseTimer = 0;
+          mMooseState = MooseState::DELAY;
+        }
+        break;
+      }
+    case MooseState::DELAY:
+      {
+        if (mMooseTimer >= 2000) {
+          Serial.print("MOOSE GO!");
+          mMooseState = MooseState::GO;
+        }
+        break;
+      }
+    case MooseState::GO:
+      {
+        if (!mStepper.run()) {
+          Serial.print("MOOSE RESET!");
+          mMooseState = MooseState::START;
+          mHitRegistered = false;
+        }
+        break;
+      }
   }
 
   return true;

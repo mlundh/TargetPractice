@@ -38,6 +38,7 @@ enum states
   LINEAR_REACT,
   LINEAR_COMPETITION,
   RANDOM,
+  MOOSE,
 };
 struct stringStates {
    static const char* enumtext[];
@@ -95,14 +96,18 @@ class controller
   bool randomEntry();
   bool randomRun();
 
+  // random specific functions
+  bool mooseEntry();
+  bool mooseRun();
+
   public:
   AccelStepper mStepper;
   StateMachine mStateMachine;
   const float mMaxSpeedLimit = 800*stepMultiplier;  // set this to the maximum speed you want to use.
   const float mMaxAcceleration = 600*stepMultiplier;
-  const float mStopFastAcc = mMaxAcceleration * 6;
+  const float mStopFastAcc = mMaxAcceleration * 2;
   const long int mMaxDistance = 5600*stepMultiplier; // 90mm diameter wheel with 200 pulses per revolution -> 1,4137mm/pulse. Max supported distance 8m -> approx 5600 pulses. 5:1 gearbox, and quarterstep.
-  const long int mMarginFromEnd = 50*stepMultiplier;
+  const long int mMarginFromEnd = 5*stepMultiplier;
   const long int mMaxDelay = 2000;
   const long int mInitDelay = 1000;
 
@@ -124,16 +129,21 @@ class controller
   bool mFirstEntryDelay = true;
   bool mInitFoundFirst = false;
   bool mLinearCompInit = false;
+  bool mMooseInit = false;
   unsigned int mShakes = 0;
   long int mDelta = 150;
   bool mFirstRandDelay = true;
   long int mRandDelay = 0;
 
   enum LinearComp {RUN, WON, CELEBRATE};
+  enum MooseState {START, DELAY, GO};
+
+  MooseState mMooseState = MooseState::START;
   LinearComp mLinearCompState = LinearComp::RUN;
 
   elapsedMillis mEntryTimer;
   elapsedMillis mRandTimer;
+  elapsedMillis mMooseTimer;
   Adafruit_SSD1306 display;
 
 };
